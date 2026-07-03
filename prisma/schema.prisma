@@ -1,0 +1,80 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Patient {
+  id              String    @id @default(uuid())
+  an              String    @unique          // เลข AN 8 หลัก
+  name            String                     // ชื่อผู้ป่วย
+  age             Int                        // อายุ
+  gender          String                     // เพศ: MALE / FEMALE
+  surgeryType     String                     // ชนิดการผ่าตัด
+  orDischargeAt   DateTime                   // วันเวลาออกจากห้องผ่าตัด
+  reminderHours   Int       @default(6)      // 6 หรือ 12 ชม.
+  scheduledAt     DateTime                   // เวลาที่ต้องกระตุ้นลุกเดิน (คำนวณอัตโนมัติ)
+  useLaxative     Boolean   @default(false)  // ใช้ยาระบาย
+  usePainMed      Boolean   @default(false)  // ใช้ยาแก้ปวด
+  hasRestriction  Boolean   @default(false)  // มีข้อจำกัดจากคำสั่งแพทย์
+  restrictionNote String?                    // รายละเอียดข้อจำกัด
+  status          String    @default("PENDING") // PENDING / DUE / COMPLETED / OVERDUE
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  assessments     Assessment[]
+  ambulations     Ambulation[]
+  notifications   Notification[]
+}
+
+model Assessment {
+  id                  String   @id @default(uuid())
+  patientId           String
+  patient             Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  systolicBP          Int                // Systolic BP (mmHg)
+  diastolicBP         Int                // Diastolic BP (mmHg)
+  heartRate           Int                // อัตราการเต้นหัวใจ (bpm)
+  temperature         Float              // อุณหภูมิ (°C)
+  painScore           Int                // Pain Score 0-10
+  noDizziness         Boolean            // ไม่มีอาการวิงเวียน/คลื่นไส้รุนแรง
+  noActiveBleeding    Boolean            // ไม่มี Active Bleeding
+  isConscious         Boolean            // รู้สึกตัวดี สามารถรับคำสั่งได้
+  noOrthostatic       Boolean            // ไม่มี Orthostatic Hypotension
+  drainSecure         Boolean            // Drain/Tube มั่นคง ไม่เลื่อนหลุด
+  noDoctorRestriction Boolean            // ไม่มีข้อห้ามจากแพทย์
+  result              String             // READY / NOT_READY
+  failedReasons       String?            // สาเหตุที่ไม่ผ่าน (JSON array string)
+  assessedAt          DateTime @default(now())
+}
+
+model Ambulation {
+  id               String   @id @default(uuid())
+  patientId        String
+  patient          Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  startTime        DateTime             // เวลาเริ่มเดิน
+  endTime          DateTime             // เวลาหยุดเดิน
+  distance         Float?               // ระยะทาง (เมตร)
+  duration         Int?                 // ระยะเวลา (นาที)
+  assistLevel      String               // INDEPENDENT / ARM_SUPPORT / WALKER / WHEELCHAIR
+  symptomsDuring   String               // NORMAL / DIZZY / FATIGUE / SEVERE_PAIN / OTHER
+  symptomsAfter    String               // NORMAL / ABNORMAL
+  symptomsNote     String?              // รายละเอียดอาการ
+  complication     String               // NONE / FALL / DRAIN_DISLODGE / OTHER
+  complicationNote String?              // รายละเอียดภาวะแทรกซ้อน
+  recordedAt       DateTime @default(now())
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  patientId   String
+  patient     Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  type        String               // INITIAL / REMINDER
+  message     String
+  isRead      Boolean  @default(false)
+  sentAt      DateTime @default(now())
+}
