@@ -1,364 +1,214 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { patientAPI, ambulationAPI } from '../services/api';
-
-const assistLevels = [
-  { value: 'independent', label: 'ด้วยตนเอง' },
-  { value: 'minimal', label: 'ช่วยเหลือน้อย' },
-  { value: 'moderate', label: 'ช่วยเหลือปานกลาง' },
-  { value: 'maximal', label: 'ช่วยเหลือมาก' },
-];
-
-const commonSymptoms = [
-  'เวียนศีรษะ',
-  'คลื่นไส้',
-  'หน้ามืด',
-  'เจ็บแผล',
-  'หายใจลำบาก',
-  'อ่อนเพลีย',
-];
+import { format } from 'date-fns';
+import { th } from 'date-fns/locale';
+import { ambulationAPI } from '../services/api';
+import Header from '../components/Header';
 
 export default function AmbulationRecord({ showToast }) {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [patient, setPatient] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({
-    startTime: '',
-    endTime: '',
-    distance: '',
-    duration: '',
-    assistLevel: '',
-    symptomsDuring: [],
-    symptomsAfter: [],
-    hasComplication: false,
-    complicationNote: '',
-    nurseNote: '',
+  
+  const [assistLevel, setAssistLevel] = useState('Walker');
+  const [tolerance, setTolerance] = useState('ดี');
+  const [distance, setDistance] = useState('50');
+  const [duration, setDuration] = useState('6');
+  const [notes, setNotes] = useState('');
+  
+  const [symptoms, setSymptoms] = useState({
+    none: true,
+    dizzy: false,
+    tired: false,
+    pain: false
   });
+  
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const fetchPatient = async () => {
-      try {
-        const data = await patientAPI.getById(id);
-        setPatient(data);
-      } catch (err) {
-        showToast?.('ไม่สามารถโหลดข้อมูลผู้ป่วย', 'error');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchPatient();
-  }, [id, showToast]);
+  // Mock static time to match Figma
+  const staticTime = format(new Date(), 'd MMM yyyy HH:mm', { locale: th });
 
-  const updateField = (field, value) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const toggleSymptom = (type, symptom) => {
-    setForm((prev) => {
-      const list = prev[type];
-      return {
-        ...prev,
-        [type]: list.includes(symptom)
-          ? list.filter((s) => s !== symptom)
-          : [...list, symptom],
-      };
-    });
+  const handleSymptomChange = (key) => {
+    if (key === 'none') {
+      setSymptoms({ none: true, dizzy: false, tired: false, pain: false });
+    } else {
+      setSymptoms({ ...symptoms, none: false, [key]: !symptoms[key] });
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
 
-    if (!form.assistLevel) {
-      showToast?.('กรุณาเลือกระดับการช่วยเหลือ', 'error');
-      return;
-    }
-
-    setSubmitting(true);
     try {
+      let symptomsAfter = [];
+      if (symptoms.none) symptomsAfter.push('ไม่มีอาการผิดปกติ');
+      if (symptoms.dizzy) symptomsAfter.push('เวียนศีรษะ');
+      if (symptoms.tired) symptomsAfter.push('เหนื่อย');
+      if (symptoms.pain) symptomsAfter.push('ปวดแผล');
+
       await ambulationAPI.create({
         patientId: id,
-        startTime: form.startTime || undefined,
-        endTime: form.endTime || undefined,
-        distance: form.distance ? Number(form.distance) : undefined,
-        duration: form.duration ? Number(form.duration) : undefined,
-        assistLevel: form.assistLevel,
-        symptomsDuring: form.symptomsDuring,
-        symptomsAfter: form.symptomsAfter,
-        hasComplication: form.hasComplication,
-        complicationNote: form.complicationNote,
-        nurseNote: form.nurseNote,
+        startTime: new Date(), // Using current time for actual submission
+        endTime: new Date(Date.now() + duration * 60000), 
+        distance,
+        duration,
+        assistLevel,
+        symptomsDuring: tolerance,
+        symptomsAfter: symptomsAfter.join(', '),
+        symptomsNote: notes
       });
-      showToast?.('บันทึกการเดินสำเร็จ', 'success');
-      navigate(`/patient/${id}`);
-    } catch (err) {
-      showToast?.(err.message || 'เกิดข้อผิดพลาด', 'error');
+
+      showToast('บันทึกผลการเดินเรียบร้อยแล้ว');
+      navigate('/');
+    } catch (error) {
+      showToast(error.message || 'เกิดข้อผิดพลาดในการบันทึก', 'error');
     } finally {
-      setSubmitting(false);
+      setLoading(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="animate-fade-in">
-        <div className="page-header">
-          <button className="btn-back" onClick={() => navigate(`/patient/${id}`)}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-          </button>
-          <h1 className="page-title">บันทึกการเดิน</h1>
-        </div>
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="skeleton skeleton-card" />
-        ))}
-      </div>
-    );
-  }
-
   return (
-    <div className="animate-fade-in">
-      {/* Header */}
-      <div className="page-header">
-        <button className="btn-back" onClick={() => navigate(`/patient/${id}`)}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-        </button>
-        <div>
-          <h1 className="page-title">บันทึกการเดิน</h1>
-          <p className="page-subtitle">Ambulation Record</p>
-        </div>
-      </div>
+    <>
+      <Header title="บันทึกผลการ Ambulate" showBack={true} />
+      
+      <div className="page-content">
+        <form onSubmit={handleSubmit}>
+          
+          <div className="info-row" style={{ alignItems: 'center' }}>
+            <span className="info-label">เวลาเริ่ม</span>
+            <input 
+              type="text" 
+              className="form-input" 
+              style={{ width: '60%', margin: 0, textAlign: 'center' }} 
+              value={staticTime}
+              readOnly
+            />
+          </div>
+          
+          <div className="info-row" style={{ margin: '16px 0', fontWeight: 'bold' }}>
+            <span>รอบที่ 1</span>
+          </div>
 
-      {/* Patient Summary */}
-      {patient && (
-        <div className="glass-card-static" style={{ marginBottom: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--gray-900)' }}>{patient.name}</div>
-              <div style={{ fontSize: '13px', color: 'var(--gray-500)' }}>AN: {patient.an} • {patient.surgeryType}</div>
+          <div style={{ marginBottom: 16 }}>
+            <div className="info-label" style={{ marginBottom: 8 }}>ระดับการช่วยเหลือ</div>
+            <div className="segmented-control">
+              {['เดินเอง', 'พยุง', 'Walker'].map(level => (
+                <button
+                  key={level}
+                  type="button"
+                  className={`segment-btn ${assistLevel === level ? 'active' : ''}`}
+                  onClick={() => setAssistLevel(level)}
+                >
+                  {level}
+                </button>
+              ))}
             </div>
           </div>
-        </div>
-      )}
 
-      <form onSubmit={handleSubmit}>
-        {/* Time */}
-        <div className="form-section">
-          <h2 className="form-section-title">
-            <span className="section-icon">⏱️</span>
-            เวลาเดิน
-          </h2>
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">เวลาเริ่ม</label>
-              <input
-                type="time"
-                className="form-input"
-                value={form.startTime}
-                onChange={(e) => updateField('startTime', e.target.value)}
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">เวลาสิ้นสุด</label>
-              <input
-                type="time"
-                className="form-input"
-                value={form.endTime}
-                onChange={(e) => updateField('endTime', e.target.value)}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Distance & Duration */}
-        <div className="form-section">
-          <h2 className="form-section-title">
-            <span className="section-icon">📏</span>
-            ระยะทางและเวลา
-          </h2>
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">ระยะทาง</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <input
-                  type="number"
-                  className="form-input"
-                  placeholder="0"
-                  min="0"
-                  value={form.distance}
-                  onChange={(e) => updateField('distance', e.target.value)}
+          <div style={{ marginBottom: 16 }}>
+            <div className="info-label" style={{ marginBottom: 8 }}>ระยะทาง/เวลา</div>
+            <div className="info-row" style={{ alignItems: 'center', justifyContent: 'flex-start', gap: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>เดินได้</span>
+                <input 
+                  type="number" 
+                  className="form-input" 
+                  style={{ width: 60, margin: 0, padding: '4px 8px', textAlign: 'center' }}
+                  value={distance}
+                  onChange={(e) => setDistance(e.target.value)}
                 />
-                <span style={{ fontSize: '13px', color: 'var(--gray-500)', fontWeight: 500, whiteSpace: 'nowrap' }}>เมตร</span>
+                <span>เมตร</span>
               </div>
             </div>
-            <div className="form-group">
-              <label className="form-label">ระยะเวลา</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <input
-                  type="number"
-                  className="form-input"
-                  placeholder="0"
-                  min="0"
-                  value={form.duration}
-                  onChange={(e) => updateField('duration', e.target.value)}
+            <div className="info-row" style={{ alignItems: 'center', justifyContent: 'flex-start', gap: 16, marginTop: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>ใช้เวลา</span>
+                <input 
+                  type="number" 
+                  className="form-input" 
+                  style={{ width: 60, margin: 0, padding: '4px 8px', textAlign: 'center' }}
+                  value={duration}
+                  onChange={(e) => setDuration(e.target.value)}
                 />
-                <span style={{ fontSize: '13px', color: 'var(--gray-500)', fontWeight: 500, whiteSpace: 'nowrap' }}>นาที</span>
+                <span>นาที</span>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Assist Level */}
-        <div className="form-section">
-          <h2 className="form-section-title">
-            <span className="section-icon">🤝</span>
-            ระดับการช่วยเหลือ <span className="required">*</span>
-          </h2>
-          <div className="radio-pill-group">
-            {assistLevels.map((level) => (
-              <React.Fragment key={level.value}>
-                <input
-                  type="radio"
-                  id={`assist-${level.value}`}
-                  name="assistLevel"
-                  className="radio-pill"
-                  checked={form.assistLevel === level.value}
-                  onChange={() => updateField('assistLevel', level.value)}
-                />
-                <label htmlFor={`assist-${level.value}`} className="radio-pill-label">
-                  {level.label}
-                </label>
-              </React.Fragment>
-            ))}
+          <div style={{ marginBottom: 16 }}>
+            <div className="info-label" style={{ marginBottom: 8 }}>การทนต่อกิจกรรม</div>
+            <div className="segmented-control">
+              {['ดี', 'ปานกลาง', 'ไม่ดี'].map(level => (
+                <button
+                  key={level}
+                  type="button"
+                  className={`segment-btn ${tolerance === level ? 'active' : ''}`}
+                  onClick={() => setTolerance(level)}
+                >
+                  {level}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
 
-        {/* Symptoms During */}
-        <div className="form-section">
-          <h2 className="form-section-title">
-            <span className="section-icon">🩺</span>
-            อาการระหว่างเดิน
-          </h2>
-          <div className="radio-pill-group">
-            {commonSymptoms.map((symptom) => (
-              <React.Fragment key={`during-${symptom}`}>
-                <input
-                  type="checkbox"
-                  id={`during-${symptom}`}
-                  className="radio-pill"
-                  checked={form.symptomsDuring.includes(symptom)}
-                  onChange={() => toggleSymptom('symptomsDuring', symptom)}
+          <div style={{ marginBottom: 16 }}>
+            <div className="info-label" style={{ marginBottom: 8 }}>อาการหลัง Ambulate</div>
+            <div className="checkbox-list">
+              <label className="checkbox-item">
+                <input 
+                  type="checkbox" 
+                  checked={symptoms.none} 
+                  onChange={() => handleSymptomChange('none')}
                 />
-                <label htmlFor={`during-${symptom}`} className="radio-pill-label">
-                  {symptom}
-                </label>
-              </React.Fragment>
-            ))}
-          </div>
-        </div>
-
-        {/* Symptoms After */}
-        <div className="form-section">
-          <h2 className="form-section-title">
-            <span className="section-icon">📝</span>
-            อาการหลังเดิน
-          </h2>
-          <div className="radio-pill-group">
-            {commonSymptoms.map((symptom) => (
-              <React.Fragment key={`after-${symptom}`}>
-                <input
-                  type="checkbox"
-                  id={`after-${symptom}`}
-                  className="radio-pill"
-                  checked={form.symptomsAfter.includes(symptom)}
-                  onChange={() => toggleSymptom('symptomsAfter', symptom)}
+                <span>ไม่มีอาการผิดปกติ</span>
+              </label>
+              <label className="checkbox-item">
+                <input 
+                  type="checkbox" 
+                  checked={symptoms.dizzy} 
+                  onChange={() => handleSymptomChange('dizzy')}
                 />
-                <label htmlFor={`after-${symptom}`} className="radio-pill-label">
-                  {symptom}
-                </label>
-              </React.Fragment>
-            ))}
-          </div>
-        </div>
-
-        {/* Complications */}
-        <div className="form-section">
-          <h2 className="form-section-title">
-            <span className="section-icon">⚠️</span>
-            ภาวะแทรกซ้อน
-          </h2>
-
-          <div className="checklist-item">
-            <div className="checklist-header">
-              <div className="checklist-label">มีภาวะแทรกซ้อน</div>
-              <label className="toggle-switch">
-                <input
-                  type="checkbox"
-                  checked={form.hasComplication}
-                  onChange={(e) => updateField('hasComplication', e.target.checked)}
+                <span>เวียนศีรษะ</span>
+              </label>
+              <label className="checkbox-item">
+                <input 
+                  type="checkbox" 
+                  checked={symptoms.tired} 
+                  onChange={() => handleSymptomChange('tired')}
                 />
-                <span className="toggle-slider" />
+                <span>เหนื่อย</span>
+              </label>
+              <label className="checkbox-item">
+                <input 
+                  type="checkbox" 
+                  checked={symptoms.pain} 
+                  onChange={() => handleSymptomChange('pain')}
+                />
+                <span>ปวดแผล</span>
               </label>
             </div>
           </div>
 
-          {form.hasComplication && (
-            <div className="form-group animate-fade-in">
-              <label className="form-label">รายละเอียดภาวะแทรกซ้อน</label>
-              <textarea
-                className="form-textarea"
-                placeholder="ระบุรายละเอียด..."
-                value={form.complicationNote}
-                onChange={(e) => updateField('complicationNote', e.target.value)}
-                rows={3}
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Nurse Note */}
-        <div className="form-section">
-          <h2 className="form-section-title">
-            <span className="section-icon">💬</span>
-            บันทึกเพิ่มเติม
-          </h2>
-          <div className="form-group">
-            <textarea
-              className="form-textarea"
-              placeholder="บันทึกข้อสังเกตเพิ่มเติม (ถ้ามี)..."
-              value={form.nurseNote}
-              onChange={(e) => updateField('nurseNote', e.target.value)}
-              rows={3}
+          <div className="info-row" style={{ alignItems: 'center' }}>
+            <span className="info-label">หมายเหตุ</span>
+            <input 
+              type="text" 
+              className="form-input" 
+              style={{ width: '70%', margin: 0 }} 
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="-"
             />
           </div>
-        </div>
 
-        {/* Submit */}
-        <button
-          type="submit"
-          className="btn btn-success btn-lg"
-          disabled={submitting}
-          style={{ marginBottom: '24px' }}
-        >
-          {submitting ? (
-            <>
-              <span className="btn-spinner" />
-              กำลังบันทึก...
-            </>
-          ) : (
-            <>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </svg>
-              บันทึกการเดิน
-            </>
-          )}
-        </button>
-      </form>
-    </div>
+          <div style={{ marginTop: 32 }}>
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
+            </button>
+          </div>
+          
+        </form>
+      </div>
+    </>
   );
 }

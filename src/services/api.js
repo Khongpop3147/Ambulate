@@ -1,16 +1,40 @@
 const API_BASE = '/api';
 
 async function fetchAPI(endpoint, options = {}) {
+  const token = localStorage.getItem('sara_token');
+  const headers = { 
+    'Content-Type': 'application/json',
+    ...options.headers 
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
   const res = await fetch(`${API_BASE}${endpoint}`, {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
     ...options,
+    headers,
   });
+  
+  if (res.status === 401 || res.status === 403) {
+    localStorage.removeItem('sara_token');
+    localStorage.removeItem('sara_user');
+    if (window.location.pathname !== '/login' && window.location.pathname !== '/register-nurse') {
+      window.location.href = '/login';
+    }
+  }
+
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'เกิดข้อผิดพลาด' }));
-    throw new Error(err.error || 'เกิดข้อผิดพลาด');
+    const err = await res.json().catch(() => ({ error: 'Request failed' }));
+    throw new Error(err.error || 'Request failed');
   }
   return res.json();
 }
+
+export const authAPI = {
+  login: (credentials) => fetchAPI('/auth/login', { method: 'POST', body: JSON.stringify(credentials) }),
+  register: (data) => fetchAPI('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
+};
 
 export const patientAPI = {
   getAll: (status) => fetchAPI(`/patients${status ? `?status=${status}` : ''}`),

@@ -4,6 +4,8 @@ import patientRoutes from './routes/patients.js';
 import assessmentRoutes from './routes/assessments.js';
 import ambulationRoutes from './routes/ambulations.js';
 import notificationRoutes from './routes/notifications.js';
+import authRoutes from './routes/auth.js';
+import { verifyToken } from './middleware/auth.js';
 import { startScheduler } from './services/scheduler.js';
 
 const app = express();
@@ -12,11 +14,14 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// API Routes
-app.use('/api/patients', patientRoutes);
-app.use('/api/assessments', assessmentRoutes);
-app.use('/api/ambulations', ambulationRoutes);
-app.use('/api/notifications', notificationRoutes);
+// Auth Route (Public)
+app.use('/api/auth', authRoutes);
+
+// Protected API Routes
+app.use('/api/patients', verifyToken, patientRoutes);
+app.use('/api/assessments', verifyToken, assessmentRoutes);
+app.use('/api/ambulations', verifyToken, ambulationRoutes);
+app.use('/api/notifications', verifyToken, notificationRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
