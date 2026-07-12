@@ -43,6 +43,74 @@ router.get('/stats', async (req, res) => {
   }
 });
 
+// GET report stats
+router.get('/reports', async (req, res) => {
+  try {
+    const patients = await prisma.patient.findMany({
+      include: { ambulations: true, assessments: true },
+      orderBy: { orDischargeAt: 'asc' }
+    });
+
+    const totalPatients = patients.length;
+    let completedAmbulations = 0;
+    let totalTimeDiffMs = 0;
+    
+    const dailyStats = {}; // { 'YYYY-MM-DD': { total: 0, completed: 0 } }
+
+    patients.forEach(p => {
+      // Grouping by Date
+      const dateStr = p.orDischargeAt.toISOString().split('T')[0];
+      if (!dailyStats[dateStr]) dailyStats[dateStr] = { total: 0, completed: 0 };
+      dailyStats[dateStr].total += 1;
+
+      // Ambulation success
+      if (p.ambulations && p.ambulations.length > 0) {
+        completedAmbulations += 1;
+        dailyStats[dateStr].completed += 1;
+        
+        // Time difference (from OR Out to first Ambulation Start)
+        const firstAmbu = p.ambulations[0];
+        const diffMs = new Date(firstAmbu.startTime).getTime() - new Date(p.orDischargeAt).getTime();
+        if (diffMs > 0) totalTimeDiffMs += diffMs;
+      }
+    });
+
+    const onTimeRate = totalPatients > 0 ? (completedAmbulations / totalPatients) * 100 : 0;
+    
+    // Avg time in milliseconds
+    const avgTimeMs = completedAmbulations > 0 ? (totalTimeDiffMs / completedAmbulations) : 0;
+    const avgHours = Math.floor(avgTimeMs / (1000 * 60 * 60));
+    const avgMinutes = Math.floor((avgTimeMs % (1000 * 60 * 60)) / (1000 * 60));
+    const avgTimeStr = avgHours > 0 ? `${avgHours} ชม. ${avgMinutes} นาที` : `${avgMinutes} นาที`;
+
+    // Chart Data
+    const chartData = Object.keys(dailyStats).map(dateStr => {
+      const dayData = dailyStats[dateStr];
+      const rate = dayData.total > 0 ? Math.round((dayData.completed / dayData.total) * 100) : 0;
+      const [y, m, d] = dateStr.split('-');
+      return {
+        day: `${parseInt(d)}/${parseInt(m)}`, // e.g. "5/9"
+        rate
+      };
+    });
+
+    // Just take the last 10 days for the chart
+    const recentChartData = chartData.slice(-10);
+
+    res.json({
+      totalPatients,
+      onTimeRate: parseFloat(onTimeRate.toFixed(1)),
+      avgTimeStr: avgTimeStr === '0 นาที' && completedAmbulations === 0 ? '-' : avgTimeStr,
+      completionRate: parseFloat(onTimeRate.toFixed(1)), // using same metric for now
+      chartData: recentChartData
+    });
+
+  } catch (error) {
+    console.error('Error generating reports:', error);
+    res.status(500).json({ error: 'ไม่สามารถสร้างรายงานได้' });
+  }
+});
+
 // GET patient by ID
 router.get('/:id', async (req, res) => {
   try {

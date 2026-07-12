@@ -1,4 +1,4 @@
-const API_BASE = '/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 async function fetchAPI(endpoint, options = {}) {
   const token = localStorage.getItem('sara_token');
@@ -39,6 +39,7 @@ export const authAPI = {
 export const patientAPI = {
   getAll: (status) => fetchAPI(`/patients${status ? `?status=${status}` : ''}`),
   getStats: () => fetchAPI('/patients/stats'),
+  getReports: () => fetchAPI('/patients/reports'),
   getById: (id) => fetchAPI(`/patients/${id}`),
   create: (data) => fetchAPI('/patients', { method: 'POST', body: JSON.stringify(data) }),
   update: (id, data) => fetchAPI(`/patients/${id}`, { method: 'PUT', body: JSON.stringify(data) }),

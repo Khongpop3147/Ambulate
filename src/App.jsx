@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import BottomNav from './components/BottomNav';
 import Dashboard from './pages/Dashboard';
@@ -27,33 +27,45 @@ const ProtectedRoute = ({ children }) => {
 const AppContent = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [toasts, setToasts] = useState([]);
+  const prevCountRef = useRef(0);
   const { isAuthenticated } = useAuth();
-
-  const fetchUnreadCount = useCallback(async () => {
-    if (!isAuthenticated) return;
-    try {
-      const data = await notificationAPI.getUnreadCount();
-      setUnreadCount(data.count || 0);
-    } catch {
-      // Silently fail
-    }
-  }, [isAuthenticated]);
-
-  useEffect(() => {
-    fetchUnreadCount();
-    if (isAuthenticated) {
-      const interval = setInterval(fetchUnreadCount, 30000);
-      return () => clearInterval(interval);
-    }
-  }, [fetchUnreadCount, isAuthenticated]);
 
   const showToast = useCallback((message, type = 'success') => {
     const id = Date.now();
     setToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3000);
+    }, 4000); // 4 seconds
   }, []);
+
+  const fetchUnreadCount = useCallback(async () => {
+    if (!isAuthenticated) return;
+    try {
+      const data = await notificationAPI.getUnreadCount();
+      const newCount = data.count || 0;
+      
+      if (newCount > prevCountRef.current && prevCountRef.current !== 0) {
+        showToast("🔔 มีผู้ป่วยถึงเวลาลุกเดิน!", "warning");
+        const audio = new Audio('https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg');
+        audio.play().catch(() => {}); // catch autoplay restrictions
+      }
+      
+      prevCountRef.current = newCount;
+      setUnreadCount(newCount);
+    } catch {
+      // Silently fail
+    }
+  }, [isAuthenticated, showToast]);
+
+  useEffect(() => {
+    fetchUnreadCount();
+    if (isAuthenticated) {
+      const interval = setInterval(fetchUnreadCount, 10000); // Poll every 10 seconds
+      return () => clearInterval(interval);
+    }
+  }, [fetchUnreadCount, isAuthenticated]);
+
+
 
   const getToastIcon = (type) => {
     switch (type) {

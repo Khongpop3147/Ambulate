@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: sara-backend
+    env: node
+    buildCommand: npm install && npx prisma generate
+    startCommand: node server/index.js
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: PORT
+        value: 3001
+      - key: NODE_ENV
+        value: production

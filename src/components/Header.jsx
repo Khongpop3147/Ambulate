@@ -20,7 +20,7 @@ export default function Header({ title, showBack = false, showBell = false, righ
       <div style={{ width: 24, display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
         {rightElement ? rightElement : (
           showBell && (
-            <div className="header-bell-wrapper">
+            <div className="header-bell-wrapper" onClick={() => navigate('/notifications')} style={{ cursor: 'pointer' }}>
               <Bell className="header-icon" />
               <div className="header-bell-dot"></div>
             </div>

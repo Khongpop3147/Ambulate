@@ -156,12 +156,20 @@ export default function PatientRegistration({ showToast }) {
           <div className="detail-card" style={{ padding: '20px 16px', marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, color: 'var(--primary-blue)', fontWeight: 'bold' }}>
               <Clock size={18} />
-              <span>ตั้งเวลาประเมินรอบแรก</span>
+              <span>ตั้งเวลาประเมินรอบแรก (ชั่วโมง)</span>
             </div>
 
-            <div className="segmented-control" style={{ marginBottom: 0 }}>
-              <button type="button" className={`segment-btn ${form.reminderHours === 6 ? 'active' : ''}`} onClick={() => setForm({...form, reminderHours: 6})}>6 ชั่วโมง</button>
-              <button type="button" className={`segment-btn ${form.reminderHours === 12 ? 'active' : ''}`} onClick={() => setForm({...form, reminderHours: 12})}>12 ชั่วโมง</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <input 
+                type="number" 
+                className="form-input" 
+                value={form.reminderHours}
+                onChange={(e) => setForm({...form, reminderHours: parseInt(e.target.value) || ''})}
+                style={{ marginBottom: 0, width: '100px', textAlign: 'center', fontSize: 16, fontWeight: 'bold', color: 'var(--primary-blue)' }}
+                min="1"
+              />
+              <span style={{ fontSize: 14, color: 'var(--text-main)', fontWeight: 500 }}>ชั่วโมง</span>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>(นับจากเวลา OR Out)</span>
             </div>
           </div>
 

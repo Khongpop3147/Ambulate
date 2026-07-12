@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { notificationAPI } from '../services/api';
+import Header from '../components/Header';
+import { Bell, AlertTriangle, ClipboardCheck, Activity, CheckCircle2 } from 'lucide-react';
 
 export default function Notifications({ showToast }) {
   const navigate = useNavigate();
@@ -30,18 +32,18 @@ export default function Notifications({ showToast }) {
       setNotifications((prev) =>
         prev.map((n) => ({ ...n, isRead: true }))
       );
-      showToast?.('อ่านการแจ้งเตือนทั้งหมดแล้ว', 'success');
+      showToast('อ่านการแจ้งเตือนทั้งหมดแล้ว');
     } catch (err) {
-      showToast?.('เกิดข้อผิดพลาด', 'error');
+      showToast('เกิดข้อผิดพลาด', 'error');
     }
   };
 
   const handleClickNotification = async (notif) => {
     try {
       if (!notif.isRead) {
-        await notificationAPI.markRead(notif._id);
+        await notificationAPI.markRead(notif.id);
         setNotifications((prev) =>
-          prev.map((n) => n._id === notif._id ? { ...n, isRead: true } : n)
+          prev.map((n) => n.id === notif.id ? { ...n, isRead: true } : n)
         );
       }
       if (notif.patientId) {
@@ -63,75 +65,74 @@ export default function Notifications({ showToast }) {
 
   const getNotifIcon = (type) => {
     switch (type) {
-      case 'due': return '🔔';
-      case 'overdue': return '⚠️';
-      case 'assessment': return '📋';
-      case 'ambulation': return '🚶';
-      default: return '💬';
+      case 'INITIAL': return <Bell color="var(--primary-blue)" size={20} />;
+      case 'REMINDER': return <AlertTriangle color="var(--status-red)" size={20} />;
+      default: return <Activity color="var(--text-muted)" size={20} />;
     }
   };
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   return (
-    <div className="animate-fade-in">
-      {/* Header */}
-      <div className="page-header" style={{ justifyContent: 'space-between' }}>
-        <h1 className="page-title">
-          🔔 การแจ้งเตือน
+    <>
+      <Header title="การแจ้งเตือน" showBack={true} />
+      
+      <div className="page-content">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h2 className="section-title" style={{ margin: 0 }}>
+            ทั้งหมด {unreadCount > 0 && <span style={{ color: 'var(--status-red)' }}>({unreadCount} ใหม่)</span>}
+          </h2>
           {unreadCount > 0 && (
-            <span style={{
-              fontSize: '14px',
-              color: 'var(--primary-500)',
-              fontWeight: 500,
-              marginLeft: '8px',
-            }}>
-              ({unreadCount} ยังไม่อ่าน)
-            </span>
+            <button
+              onClick={handleMarkAllRead}
+              style={{ background: 'none', border: 'none', color: 'var(--primary-blue)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+            >
+              อ่านทั้งหมด
+            </button>
           )}
-        </h1>
-        {unreadCount > 0 && (
-          <button
-            className="btn btn-sm btn-ghost"
-            onClick={handleMarkAllRead}
-            style={{ color: 'var(--primary-600)', fontSize: '13px' }}
-          >
-            อ่านทั้งหมด
-          </button>
+        </div>
+
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>กำลังโหลดการแจ้งเตือน...</div>
+        ) : notifications.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
+            <Bell size={48} style={{ opacity: 0.2, marginBottom: 16 }} />
+            <div>ไม่มีการแจ้งเตือนใหม่</div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {notifications.map((notif) => (
+              <div
+                key={notif.id}
+                className="detail-card"
+                style={{ 
+                  padding: 16, 
+                  margin: 0, 
+                  cursor: 'pointer',
+                  borderLeft: !notif.isRead ? '4px solid var(--primary-blue)' : '1px solid var(--border-color)',
+                  background: !notif.isRead ? '#f8fbff' : 'white'
+                }}
+                onClick={() => handleClickNotification(notif)}
+              >
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <div style={{ marginTop: 2 }}>{getNotifIcon(notif.type)}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, color: 'var(--text-main)', marginBottom: 4 }}>
+                      {notif.message}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {formatTime(notif.createdAt || notif.sentAt)}
+                    </div>
+                  </div>
+                  {!notif.isRead && (
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--primary-blue)', marginTop: 6 }} />
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
-
-      {/* Notifications List */}
-      {loading ? (
-        <div>
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="skeleton skeleton-card" />
-          ))}
-        </div>
-      ) : notifications.length === 0 ? (
-        <div className="empty-state">
-          <span className="empty-icon">🔕</span>
-          <p className="empty-text">ไม่มีการแจ้งเตือน</p>
-          <p className="empty-subtext">เมื่อมีการแจ้งเตือนใหม่จะแสดงที่นี่</p>
-        </div>
-      ) : (
-        notifications.map((notif) => (
-          <div
-            key={notif._id}
-            className={`notification-card ${!notif.isRead ? 'unread' : ''}`}
-            onClick={() => handleClickNotification(notif)}
-          >
-            <div className="notif-icon">{getNotifIcon(notif.type)}</div>
-            {notif.patientName && (
-              <div className="notif-patient">
-                👤 {notif.patientName} (AN: {notif.patientAN || ''})
-              </div>
-            )}
-            <div className="notif-message">{notif.message}</div>
-            <div className="notif-time">{formatTime(notif.createdAt)}</div>
-          </div>
-        ))
-      )}
-    </div>
+    </>
   );
 }
